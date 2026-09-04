@@ -105,6 +105,11 @@ func (r *Channels) UpdateCosts(id uint, todayCost float64, totalCost float64) er
 		"total_cost": totalCost,
 	}).Error
 }
+
+// UpdateTodayCost 只更新今日消费，保留累计消费不变。
+func (r *Channels) UpdateTodayCost(id uint, todayCost float64) error {
+	return r.db.Model(&Channel{}).Where("id = ?", id).Update("today_cost", todayCost).Error
+}
 func (r *Channels) SetLastError(id uint, msg string) error {
 	return r.db.Model(&Channel{}).Where("id = ?", id).Update("last_error", msg).Error
 }

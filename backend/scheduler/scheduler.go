@@ -4,6 +4,8 @@ package scheduler
 import (
 	"context"
 	"log/slog"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/bejix/upstream-ops/backend/captcha"
@@ -35,6 +37,18 @@ type gatewayRateResortService interface {
 	ResortRoutesOnRateScan(ctx context.Context)
 }
 
+func cronLocation() *time.Location {
+	tz := strings.TrimSpace(os.Getenv("TZ"))
+	if tz == "" {
+		tz = "Asia/Shanghai"
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		return time.FixedZone("Asia/Shanghai", 8*60*60)
+	}
+	return loc
+}
+
 // New 构造调度器。
 func New(
 	cfg config.SchedulerConfig,
@@ -52,7 +66,7 @@ func New(
 	return &Scheduler{
 		cfg:           cfg,
 		log:           log,
-		cron:          cron.New(cron.WithSeconds()),
+		cron:          cron.New(cron.WithSeconds(), cron.WithLocation(cronLocation())),
 		monitor:       m,
 		monLogs:       monLogs,
 		rates:         rates,
@@ -77,6 +91,11 @@ func (s *Scheduler) Start() error {
 			return err
 		}
 	}
+	if s.cfg.BalanceDigestCron != "" {
+		if _, err := s.cron.AddFunc(s.cfg.BalanceDigestCron, s.runBalanceDigest); err != nil {
+			return err
+		}
+	}
 	if s.cfg.Retention.Cron != "" && s.hasRetention() {
 		if _, err := s.cron.AddFunc(s.cfg.Retention.Cron, s.runRetention); err != nil {
 			return err
@@ -86,8 +105,10 @@ func (s *Scheduler) Start() error {
 	s.log.Info("scheduler started",
 		"balanceCron", s.cfg.BalanceCron,
 		"rateCron", s.cfg.RateCron,
+		"balanceDigestCron", s.cfg.BalanceDigestCron,
 		"retentionCron", s.cfg.Retention.Cron,
 		"concurrency", s.cfg.Concurrency,
+		"location", cronLocation().String(),
 	)
 	return nil
 }
@@ -118,6 +139,17 @@ func (s *Scheduler) runRates() {
 	}
 	if s.gatewayResort != nil {
 		s.gatewayResort.ResortRoutesOnRateScan(ctx)
+	}
+}
+
+func (s *Scheduler) runBalanceDigest() {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+	if s.monitor == nil {
+		return
+	}
+	if err := s.monitor.DispatchBalanceDigest(ctx); err != nil {
+		s.log.Warn("balance digest failed", "err", err)
 	}
 }
 

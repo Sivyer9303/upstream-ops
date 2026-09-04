@@ -551,7 +551,7 @@ export default function SettingsPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <Field
                   label="余额采集 Cron"
-                  description="控制余额与消费同步的执行周期。"
+                  description="6 段（秒 分 时 日 月 周），按容器 TZ（默认 Asia/Shanghai）解释。示例：37 */15 8-22 * * * 表示白天每 15 分钟；保存后需点「应用」。"
                 >
                   <Input
                     value={form.scheduler.balanceCron}
@@ -572,7 +572,7 @@ export default function SettingsPage() {
                 </Field>
                 <Field
                   label="倍率采集 Cron"
-                  description="控制分组倍率扫描的执行周期。"
+                  description="6 段 cron。示例：13 */30 * * * * 表示每 30 分钟。"
                 >
                   <Input
                     value={form.scheduler.rateCron}
@@ -589,6 +589,28 @@ export default function SettingsPage() {
                           : prev,
                       )
                     }
+                  />
+                </Field>
+                <Field
+                  label="余额汇总 Cron"
+                  description="定时把已监控渠道余额按优先级汇总成一条通知。空=不启用。示例：0 0 9,21 * * *。通知渠道需勾选「余额汇总」（或订阅全部事件）。"
+                >
+                  <Input
+                    value={form.scheduler.balanceDigestCron ?? ""}
+                    onChange={(e) =>
+                      setForm((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              scheduler: {
+                                ...prev.scheduler,
+                                balanceDigestCron: e.target.value,
+                              },
+                            }
+                          : prev,
+                      )
+                    }
+                    placeholder="留空不启用"
                   />
                 </Field>
                 <Field

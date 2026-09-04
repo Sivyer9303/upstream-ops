@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -210,22 +211,114 @@ func (c *Client) GetBalance(ctx context.Context, ch *connector.Channel, session 
 }
 
 func (c *Client) GetCosts(ctx context.Context, ch *connector.Channel, session *connector.AuthSession) (*connector.CostResult, error) {
-	body, err := c.getJSON(ctx, strings.TrimRight(ch.SiteURL, "/")+"/api/v1/usage/dashboard/stats", session)
-	if err != nil {
-		return nil, fmt.Errorf("sub2api dashboard stats: %w", err)
+	site := strings.TrimRight(ch.SiteURL, "/")
+
+	// 优先 dashboard/stats（含今日 + 累计）；失败再回退 usage 列表汇总今日。
+	body, err := c.getJSON(ctx, site+"/api/v1/usage/dashboard/stats", session)
+	if err == nil {
+		var stats struct {
+			TodayActualCost float64 `json:"today_actual_cost"`
+			TotalActualCost float64 `json:"total_actual_cost"`
+		}
+		if err := json.Unmarshal(body, &stats); err != nil {
+			return nil, fmt.Errorf("sub2api dashboard stats decode: %w", err)
+		}
+		multiplier := c.rechargeMultiplier(ctx, ch, session)
+		return &connector.CostResult{
+			TodayCost:  connector.ApplyRechargeMultiplier(stats.TodayActualCost, multiplier, ch.RechargeMultiplierMode),
+			TotalCost:  connector.ApplyRechargeMultiplier(stats.TotalActualCost, multiplier, ch.RechargeMultiplierMode),
+			TotalKnown: true,
+		}, nil
 	}
-	var stats struct {
-		TodayActualCost float64 `json:"today_actual_cost"`
-		TotalActualCost float64 `json:"total_actual_cost"`
-	}
-	if err := json.Unmarshal(body, &stats); err != nil {
-		return nil, fmt.Errorf("sub2api dashboard stats decode: %w", err)
+	statsErr := err
+
+	todayCost, usageErr := c.sumTodayUsageCost(ctx, site, session)
+	if usageErr != nil {
+		return nil, fmt.Errorf("sub2api dashboard stats: %v; usage fallback: %w", statsErr, usageErr)
 	}
 	multiplier := c.rechargeMultiplier(ctx, ch, session)
 	return &connector.CostResult{
-		TodayCost: connector.ApplyRechargeMultiplier(stats.TodayActualCost, multiplier, ch.RechargeMultiplierMode),
-		TotalCost: connector.ApplyRechargeMultiplier(stats.TotalActualCost, multiplier, ch.RechargeMultiplierMode),
+		TodayCost:  connector.ApplyRechargeMultiplier(todayCost, multiplier, ch.RechargeMultiplierMode),
+		TotalKnown: false,
 	}, nil
+}
+
+func userTimezone() string {
+	if tz := strings.TrimSpace(os.Getenv("TZ")); tz != "" {
+		return tz
+	}
+	return "Asia/Shanghai"
+}
+
+func todayDateInUserTZ() string {
+	tz := userTimezone()
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		loc = time.FixedZone("Asia/Shanghai", 8*60*60)
+	}
+	return time.Now().In(loc).Format("2006-01-02")
+}
+
+// sumTodayUsageCost 分页拉取当日 usage 明细并汇总 actual_cost（无则 cost）。
+func (c *Client) sumTodayUsageCost(ctx context.Context, site string, session *connector.AuthSession) (float64, error) {
+	day := todayDateInUserTZ()
+	tz := userTimezone()
+	const pageSize = 50
+	var (
+		page      = 1
+		totalCost float64
+		seen      int
+		total     = -1
+	)
+	for {
+		params := url.Values{}
+		params.Set("page", strconv.Itoa(page))
+		params.Set("page_size", strconv.Itoa(pageSize))
+		params.Set("start_date", day)
+		params.Set("end_date", day)
+		params.Set("sort_by", "created_at")
+		params.Set("sort_order", "desc")
+		params.Set("timezone", tz)
+
+		body, err := c.getJSON(ctx, site+"/api/v1/usage?"+params.Encode(), session)
+		if err != nil {
+			return 0, fmt.Errorf("sub2api usage: %w", err)
+		}
+
+		var pageData struct {
+			Items []struct {
+				ActualCost float64 `json:"actual_cost"`
+			} `json:"items"`
+			Total    int `json:"total"`
+			Page     int `json:"page"`
+			PageSize int `json:"page_size"`
+		}
+		// Sub2API 分页响应可能是 {items,total,...} 直接在 data 里，也可能套一层。
+		if err := json.Unmarshal(body, &pageData); err != nil {
+			return 0, fmt.Errorf("sub2api usage decode: %w", err)
+		}
+		if total < 0 {
+			total = pageData.Total
+		}
+		if len(pageData.Items) == 0 {
+			break
+		}
+		for _, item := range pageData.Items {
+			totalCost += item.ActualCost
+		}
+		seen += len(pageData.Items)
+		if total >= 0 && seen >= total {
+			break
+		}
+		if len(pageData.Items) < pageSize {
+			break
+		}
+		page++
+		if page > 200 {
+			return 0, fmt.Errorf("sub2api usage: too many pages")
+		}
+	}
+	return totalCost, nil
 }
 
 func (c *Client) rechargeMultiplier(ctx context.Context, ch *connector.Channel, session *connector.AuthSession) *float64 {

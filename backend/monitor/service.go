@@ -128,21 +128,36 @@ func (s *Service) RefreshBalance(ctx context.Context, c *storage.Channel) error 
 	progress.Start(ctx, progress.StageCost, "拉取消费…")
 	costRes, err := conn.GetCosts(ctx, resolved, session)
 	if err != nil {
-		progress.Fail(ctx, progress.StageCost, err.Error())
-		s.notifyError(ctx, c, storage.EventMonitorFailed, "消费采集失败", err)
-		return err
+		// 消费是次要指标：失败不推送、不把整次余额刷新判失败，保留上次消费数据。
+		progress.OK(ctx, progress.StageCost, fmt.Sprintf("消费跳过（保留上次）：%s", err.Error()), nil)
+		s.log.Warn("refresh costs skipped", "channel", c.Name, "err", err)
+	} else {
+		if costRes.TotalKnown {
+			if err := s.channels.UpdateCosts(c.ID, costRes.TodayCost, costRes.TotalCost); err != nil {
+				progress.OK(ctx, progress.StageCost, fmt.Sprintf("消费落库跳过：%s", err.Error()), nil)
+				s.log.Warn("update costs failed", "channel", c.Name, "err", err)
+			} else {
+				_ = s.rates.AppendCost(&storage.CostSnapshot{
+					ChannelID: c.ID,
+					TodayCost: costRes.TodayCost,
+					SampledAt: sampledAt,
+				})
+				progress.OK(ctx, progress.StageCost, fmt.Sprintf("今日 %0.4f / 累计 %0.4f", costRes.TodayCost, costRes.TotalCost),
+					map[string]any{"today_cost": costRes.TodayCost, "total_cost": costRes.TotalCost})
+			}
+		} else if err := s.channels.UpdateTodayCost(c.ID, costRes.TodayCost); err != nil {
+			progress.OK(ctx, progress.StageCost, fmt.Sprintf("消费落库跳过：%s", err.Error()), nil)
+			s.log.Warn("update today cost failed", "channel", c.Name, "err", err)
+		} else {
+			_ = s.rates.AppendCost(&storage.CostSnapshot{
+				ChannelID: c.ID,
+				TodayCost: costRes.TodayCost,
+				SampledAt: sampledAt,
+			})
+			progress.OK(ctx, progress.StageCost, fmt.Sprintf("今日 %0.4f（累计保留上次）", costRes.TodayCost),
+				map[string]any{"today_cost": costRes.TodayCost})
+		}
 	}
-	if err := s.channels.UpdateCosts(c.ID, costRes.TodayCost, costRes.TotalCost); err != nil {
-		progress.Fail(ctx, progress.StageCost, err.Error())
-		return err
-	}
-	_ = s.rates.AppendCost(&storage.CostSnapshot{
-		ChannelID: c.ID,
-		TodayCost: costRes.TodayCost,
-		SampledAt: sampledAt,
-	})
-	progress.OK(ctx, progress.StageCost, fmt.Sprintf("今日 %0.4f / 累计 %0.4f", costRes.TodayCost, costRes.TotalCost),
-		map[string]any{"today_cost": costRes.TodayCost, "total_cost": costRes.TotalCost})
 
 	if c.BalanceThreshold > 0 && res.Balance < c.BalanceThreshold {
 		body := fmt.Sprintf("当前余额: %.4f，阈值: %.4f", res.Balance, c.BalanceThreshold)
@@ -154,6 +169,51 @@ func (s *Service) RefreshBalance(ctx context.Context, c *storage.Channel) error 
 		})
 	}
 	return nil
+}
+
+// DispatchBalanceDigest 按渠道优先级汇总已监控渠道的库内余额，发一条系统级通知。
+// 不重新拉取上游，避免引入超时噪音。
+func (s *Service) DispatchBalanceDigest(ctx context.Context) error {
+	list, err := s.channels.ListMonitorEnabled()
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		s.log.Info("balance digest skipped: no monitored channels")
+		return nil
+	}
+
+	var total float64
+	var b strings.Builder
+	fmt.Fprintf(&b, "余额汇总（共 %d 个渠道）\n", len(list))
+	for i, c := range list {
+		bal := 0.0
+		if c.LastBalance != nil {
+			bal = *c.LastBalance
+			total += bal
+		}
+		status := "健康"
+		switch {
+		case c.LastError != "":
+			status = "异常"
+		case c.BalanceThreshold > 0 && c.LastBalance != nil && *c.LastBalance < c.BalanceThreshold:
+			status = "偏低"
+		case c.LastBalance == nil:
+			status = "未采样"
+		}
+		fmt.Fprintf(&b, "%d. %s  余额 %.4f", i+1, c.Name, bal)
+		if c.BalanceThreshold > 0 {
+			fmt.Fprintf(&b, "  阈值 %.4f", c.BalanceThreshold)
+		}
+		fmt.Fprintf(&b, "  %s\n", status)
+	}
+	fmt.Fprintf(&b, "\n合计：%.4f", total)
+
+	return s.dispatcher.Dispatch(ctx, notify.Message{
+		Event:   storage.EventBalanceDigest,
+		Subject: fmt.Sprintf("余额汇总（%d 渠道，合计 %.4f）", len(list), total),
+		Body:    strings.TrimSpace(b.String()),
+	})
 }
 
 // RefreshRates 单个渠道倍率刷新，可被 API 手动触发。

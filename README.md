@@ -224,6 +224,7 @@ The system settings page manages:
 - Token signing secret.
 - Balance sync cron.
 - Rate sync cron.
+- Balance digest cron (optional).
 - Scheduler concurrency.
 - Monitor log, balance snapshot, notification log, and announcement retention.
 - Rate change notification merge policy.
@@ -302,7 +303,7 @@ IMAGE_TAG=latest
 For production, pin a specific version:
 
 ```env
-IMAGE_TAG=v0.0.9
+IMAGE_TAG=v1.0.1
 ```
 
 ## MySQL Deployment
@@ -1036,13 +1037,18 @@ Database connection, HTTP port, and log level still require restart.
 
 ## Scheduler and Retention
 
+Cron expressions use **6 fields** (sec min hour day month weekday). Hour windows follow the container `TZ` env (Compose defaults to `Asia/Shanghai`). After changing cron, click Save then Apply to rebuild the scheduler.
+
 Default schedules:
 
-- Balance sync: every 15 minutes.
+- Balance sync: every 15 minutes (includes cost fetch; Sub2API prefers `dashboard/stats`, falls back to same-day `usage` list; cost failures do not notify).
 - Rate sync: every 30 minutes.
+- Balance digest: disabled by default; e.g. `0 0 9,21 * * *` sends one `balance_digest` summary ordered by channel priority.
 - Subscription usage check: runs with balance sync.
 - Captcha balance refresh: scheduled and manual refresh are supported.
 - History cleanup: daily.
+
+Quiet-night example: set balance cron to `37 */15 8-22 * * *`.
 
 Default retention:
 

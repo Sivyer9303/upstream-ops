@@ -192,6 +192,9 @@ func (m *Manager) ApplyFromFile() (*ApplyResult, error) {
 		m.log.Info("runtime config applied",
 			"sections", sections,
 			"config_path", path,
+			"balanceCron", cfg.Scheduler.BalanceCron,
+			"rateCron", cfg.Scheduler.RateCron,
+			"balanceDigestCron", cfg.Scheduler.BalanceDigestCron,
 		)
 	}
 

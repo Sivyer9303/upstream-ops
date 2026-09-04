@@ -28,6 +28,7 @@ export type MonitorJob = "login" | "balance" | "rates"
 
 export type NotificationEvent =
   | "balance_low"
+  | "balance_digest"
   | "rate_changed"
   | "rate_structure_changed"
   | "rate_added"
@@ -251,6 +252,7 @@ export interface SystemSchedulerRetentionConfig {
 export interface SystemSchedulerConfig {
   balanceCron: string
   rateCron: string
+  balanceDigestCron?: string
   concurrency: number
   retention: SystemSchedulerRetentionConfig
 }

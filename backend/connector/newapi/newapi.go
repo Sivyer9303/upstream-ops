@@ -368,8 +368,9 @@ func (c *Client) GetCosts(ctx context.Context, ch *connector.Channel, session *c
 	totalCost := c.quotaToUSD(usage.UsedQuota, status.QuotaPerUnit)
 	multiplier := newAPIRechargeMultiplier(ch, status.Price)
 	return &connector.CostResult{
-		TodayCost: connector.ApplyRechargeMultiplier(todayCost, multiplier, ch.RechargeMultiplierMode),
-		TotalCost: connector.ApplyRechargeMultiplier(totalCost, multiplier, ch.RechargeMultiplierMode),
+		TodayCost:  connector.ApplyRechargeMultiplier(todayCost, multiplier, ch.RechargeMultiplierMode),
+		TotalCost:  connector.ApplyRechargeMultiplier(totalCost, multiplier, ch.RechargeMultiplierMode),
+		TotalKnown: true,
 	}, nil
 }
 

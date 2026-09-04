@@ -103,6 +103,9 @@ func TestGetCosts(t *testing.T) {
 	mux.HandleFunc("/api/v1/usage/dashboard/stats", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"code":0,"message":"","data":{"today_actual_cost":1.23,"total_actual_cost":45.67}}`))
 	})
+	mux.HandleFunc("/api/v1/usage", func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("usage fallback should not be called when stats succeeds")
+	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
@@ -120,6 +123,97 @@ func TestGetCosts(t *testing.T) {
 	}
 	if res.TotalCost != 45.67 {
 		t.Fatalf("total cost = %v, want 45.67", res.TotalCost)
+	}
+	if !res.TotalKnown {
+		t.Fatal("TotalKnown = false, want true")
+	}
+}
+
+func TestGetCostsFallsBackToUsage(t *testing.T) {
+	t.Setenv("TZ", "Asia/Shanghai")
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/usage/dashboard/stats", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "timeout", http.StatusGatewayTimeout)
+	})
+	var usageCalls int
+	mux.HandleFunc("/api/v1/usage", func(w http.ResponseWriter, r *http.Request) {
+		usageCalls++
+		q := r.URL.Query()
+		if q.Get("page_size") != "50" {
+			t.Fatalf("page_size = %q", q.Get("page_size"))
+		}
+		if q.Get("timezone") != "Asia/Shanghai" {
+			t.Fatalf("timezone = %q", q.Get("timezone"))
+		}
+		if q.Get("start_date") == "" || q.Get("start_date") != q.Get("end_date") {
+			t.Fatalf("dates start=%q end=%q", q.Get("start_date"), q.Get("end_date"))
+		}
+		_, _ = w.Write([]byte(`{"code":0,"message":"","data":{"items":[{"actual_cost":1.1},{"actual_cost":2.2},{"actual_cost":0.7}],"total":3,"page":1,"page_size":50}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	c := New()
+	res, err := c.GetCosts(context.Background(), &connector.Channel{
+		SiteURL: srv.URL,
+	}, &connector.AuthSession{
+		AccessToken: "token",
+	})
+	if err != nil {
+		t.Fatalf("GetCosts: %v", err)
+	}
+	if usageCalls != 1 {
+		t.Fatalf("usage calls = %d, want 1", usageCalls)
+	}
+	want := 4.0
+	if res.TodayCost != want {
+		t.Fatalf("today cost = %v, want %v", res.TodayCost, want)
+	}
+	if res.TotalKnown {
+		t.Fatal("TotalKnown = true, want false for usage fallback")
+	}
+}
+
+func TestGetCostsFallsBackToUsagePaginates(t *testing.T) {
+	t.Setenv("TZ", "Asia/Shanghai")
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/usage/dashboard/stats", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`{"code":1,"message":"fail"}`))
+	})
+	var usageCalls int
+	mux.HandleFunc("/api/v1/usage", func(w http.ResponseWriter, r *http.Request) {
+		usageCalls++
+		page := r.URL.Query().Get("page")
+		switch page {
+		case "1":
+			items := make([]string, 50)
+			for i := range items {
+				items[i] = `{"actual_cost":1}`
+			}
+			_, _ = w.Write([]byte(`{"code":0,"message":"","data":{"items":[` + strings.Join(items, ",") + `],"total":51,"page":1,"page_size":50}}`))
+		case "2":
+			_, _ = w.Write([]byte(`{"code":0,"message":"","data":{"items":[{"actual_cost":0.5}],"total":51,"page":2,"page_size":50}}`))
+		default:
+			t.Fatalf("unexpected page %q", page)
+		}
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	c := New()
+	res, err := c.GetCosts(context.Background(), &connector.Channel{
+		SiteURL: srv.URL,
+	}, &connector.AuthSession{AccessToken: "token"})
+	if err != nil {
+		t.Fatalf("GetCosts: %v", err)
+	}
+	if usageCalls != 2 {
+		t.Fatalf("usage calls = %d, want 2", usageCalls)
+	}
+	want := 50.5
+	if res.TodayCost != want {
+		t.Fatalf("today cost = %v, want %v", res.TodayCost, want)
 	}
 }
 

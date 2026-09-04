@@ -93,6 +93,8 @@ type BalanceResult struct {
 type CostResult struct {
 	TodayCost float64
 	TotalCost float64
+	// TotalKnown 为 false 时表示累计消费不可靠（例如仅从今日明细回退汇总），调用方应保留库内旧值。
+	TotalKnown bool
 }
 
 // RateResult 一条倍率记录。ModelName 在两个上游分别是"分组名"，Description 是该分组的描述（来自上游接口）。
