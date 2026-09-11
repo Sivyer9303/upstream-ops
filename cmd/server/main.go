@@ -129,7 +129,13 @@ func main() {
 		SendMaxAttempts:                          cfg.Notifications.SendMaxAttempts,
 	})
 	dispatcher.UpdateProxyConfig(cfg.Proxy)
+	qqKeepAlive := notify.NewQQBotKeepAliveHub(notifies, cipher, log)
 	monitorSvc := monitor.NewService(channels, announcements, rates, monLogs, channelSvc, dispatcher, log)
+	qqKeepAlive.SetInbox(monitor.NewQQBotInbox(channels, announcements, rates, monLogs, notifies, captchas, channelSvc, log))
+	appCtx, appStop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer appStop()
+	qqKeepAlive.Start(appCtx)
+	defer qqKeepAlive.Stop()
 
 	schedulerFactory := func(scfg config.SchedulerConfig, pcfg config.ProxyConfig) *scheduler.Scheduler {
 		return scheduler.New(scfg, monitorSvc, monLogs, rates, notifies, announcements, captchas, cipher, gatewaySvc, pcfg, log)
@@ -187,6 +193,7 @@ func main() {
 		ChannelSvc:    channelSvc,
 		Monitor:       monitorSvc,
 		Dispatcher:    dispatcher,
+		QQKeepAlive:   qqKeepAlive,
 		Gateway:       gatewaySvc,
 		GatewayGroups: gatewayGroups,
 		GatewayKeys:   gatewayKeys,
@@ -210,9 +217,7 @@ func main() {
 	}()
 	log.Info("http server listening", "addr", srv.Addr)
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-	<-stop
+	<-appCtx.Done()
 	log.Info("shutdown signal received")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

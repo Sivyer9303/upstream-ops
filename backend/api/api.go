@@ -64,6 +64,7 @@ type Deps struct {
 	ChannelSvc    channelService
 	Monitor       monitorService
 	Dispatcher    *notify.Dispatcher
+	QQKeepAlive   *notify.QQBotKeepAliveHub
 	Gateway       *gateway.Service
 	GatewayGroups *storage.GatewayGroups
 	GatewayKeys   *storage.GatewayKeys

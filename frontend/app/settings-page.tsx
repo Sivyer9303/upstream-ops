@@ -1454,6 +1454,9 @@ export default function SettingsPage() {
                               {subCount === 0
                                 ? "订阅全部渠道和分组"
                                 : `已配置 ${subCount} 条订阅规则`}
+                              {channel.type === "qqbot"
+                                ? ` · @机器人发送 绑定#${channel.id} 或 帮助`
+                                : ""}
                             </p>
                           </div>
                         </div>
@@ -1820,6 +1823,7 @@ function typeLabel(type: NotificationChannelType) {
     dingtalk: "钉钉",
     feishu: "飞书",
     serverchan3: "Server酱³",
+    qqbot: "QQ 官方机器人",
   };
   return map[type] ?? type;
 }
@@ -1849,6 +1853,7 @@ function notifyIcon(type: NotificationChannelType) {
     dingtalk: Send,
     feishu: Send,
     serverchan3: Send,
+    qqbot: Send,
   };
   return map[type] ?? Send;
 }

@@ -67,6 +67,11 @@ interface ConfigState {
   // Server酱³
   serverchan3_uid: string
   serverchan3_sendkey: string
+  // QQ 官方机器人
+  qqbot_app_id: string
+  qqbot_app_secret: string
+  qqbot_group_openid: string
+  qqbot_sandbox: boolean
 }
 
 interface SubRow {
@@ -104,6 +109,10 @@ function emptyConfig(): ConfigState {
     secret: "",
     serverchan3_uid: "",
     serverchan3_sendkey: "",
+    qqbot_app_id: "",
+    qqbot_app_secret: "",
+    qqbot_group_openid: "",
+    qqbot_sandbox: false,
   }
 }
 
@@ -232,6 +241,13 @@ function buildConfigByType(type: NotificationChannelType, cfg: ConfigState): str
         uid: cfg.serverchan3_uid,
         sendkey: cfg.serverchan3_sendkey,
       })
+    case "qqbot":
+      return JSON.stringify({
+        app_id: cfg.qqbot_app_id,
+        app_secret: cfg.qqbot_app_secret,
+        group_openid: cfg.qqbot_group_openid,
+        sandbox: cfg.qqbot_sandbox,
+      })
   }
 }
 
@@ -306,6 +322,8 @@ export function NotificationFormDialog({
             return !!(form.cfg.host || form.cfg.from || form.cfg.to)
           case "serverchan3":
             return !!(form.cfg.serverchan3_uid || form.cfg.serverchan3_sendkey)
+          case "qqbot":
+            return !!(form.cfg.qqbot_app_id || form.cfg.qqbot_app_secret || form.cfg.qqbot_group_openid)
           default:
             return !!form.cfg.webhook_url
         }
@@ -401,6 +419,7 @@ export function NotificationFormDialog({
                 <SelectItem value="dingtalk">钉钉</SelectItem>
                 <SelectItem value="feishu">飞书</SelectItem>
                 <SelectItem value="serverchan3">Server酱³</SelectItem>
+                <SelectItem value="qqbot">QQ 官方机器人</SelectItem>
               </SelectContent>
             </Select>
             {isEdit ? (
@@ -414,6 +433,7 @@ export function NotificationFormDialog({
             updateCfg={updateCfg}
             disabled={submitting}
             isEdit={isEdit}
+            channelId={channel?.id}
           />
 
           <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
@@ -513,9 +533,10 @@ interface ConfigFieldsProps {
   updateCfg: (patch: Partial<ConfigState>) => void
   disabled: boolean
   isEdit: boolean
+  channelId?: number
 }
 
-function ConfigFields({ type, cfg, updateCfg, disabled, isEdit }: ConfigFieldsProps) {
+function ConfigFields({ type, cfg, updateCfg, disabled, isEdit, channelId }: ConfigFieldsProps) {
   const hint = isEdit ? (
     <p className="text-[11px] text-muted-foreground">编辑模式下留空保留原值</p>
   ) : null
@@ -681,6 +702,63 @@ function ConfigFields({ type, cfg, updateCfg, disabled, isEdit }: ConfigFieldsPr
             id="em-tls"
             checked={cfg.use_tls}
             onCheckedChange={(v) => updateCfg({ use_tls: v })}
+            disabled={disabled}
+          />
+        </div>
+        {hint}
+      </div>
+    )
+  }
+
+  if (type === "qqbot") {
+    return (
+      <div className="space-y-2 rounded-lg border border-border p-3">
+        <p className="text-xs font-medium text-muted-foreground">QQ 官方机器人</p>
+        <p className="text-[11px] leading-5 text-muted-foreground">
+          先保存并启用，再在目标群 @ 机器人。发送「绑定」
+          {channelId ? `或「绑定#${channelId}」` : ""}
+          自动写入群 OpenID；「帮助」查看全部口令；「余额」「公告」「倍率」等会立刻回应当前状态。
+        </p>
+        <div className="space-y-1.5">
+          <Label htmlFor="qqbot-appid">AppID</Label>
+          <Input
+            id="qqbot-appid"
+            placeholder="开放平台机器人 AppID"
+            value={cfg.qqbot_app_id}
+            onChange={(e) => updateCfg({ qqbot_app_id: e.target.value })}
+            required={!isEdit}
+            disabled={disabled}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="qqbot-secret">AppSecret</Label>
+          <Input
+            id="qqbot-secret"
+            type="password"
+            value={cfg.qqbot_app_secret}
+            onChange={(e) => updateCfg({ qqbot_app_secret: e.target.value })}
+            required={!isEdit}
+            disabled={disabled}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="qqbot-group">群 OpenID</Label>
+          <Input
+            id="qqbot-group"
+            placeholder="可留空，@机器人发送「绑定」自动写入"
+            value={cfg.qqbot_group_openid}
+            onChange={(e) => updateCfg({ qqbot_group_openid: e.target.value })}
+            disabled={disabled}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="qqbot-sandbox" className="text-sm font-normal">
+            沙箱环境（q.qq.com 新版机器人请关闭）
+          </Label>
+          <Switch
+            id="qqbot-sandbox"
+            checked={cfg.qqbot_sandbox}
+            onCheckedChange={(v) => updateCfg({ qqbot_sandbox: v })}
             disabled={disabled}
           />
         </div>

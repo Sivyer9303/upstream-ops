@@ -180,6 +180,7 @@ Supported notification channels:
 - DingTalk
 - Feishu
 - ServerChan3
+- QQ official bot
 
 Notification channels support subscription filters:
 
@@ -303,7 +304,7 @@ IMAGE_TAG=latest
 For production, pin a specific version:
 
 ```env
-IMAGE_TAG=v1.0.1
+IMAGE_TAG=v1.0.2
 ```
 
 ## MySQL Deployment
@@ -528,7 +529,7 @@ The channel card menu provides a clear-login action:
 
 Notification secrets, webhooks, and SMTP passwords are encrypted at rest. Add or edit a notification channel with the JSON configuration matching its type.
 
-Notification channels can enable `proxy_enabled` individually. Telegram, Webhook, WeCom, DingTalk, Feishu, and ServerChan3 requests use proxy only when both global proxy and notification-channel proxy are enabled.
+Notification channels can enable `proxy_enabled` individually. Telegram, Webhook, WeCom, DingTalk, Feishu, ServerChan3, and QQ official bot requests use proxy only when both global proxy and notification-channel proxy are enabled.
 
 ### Telegram
 
@@ -612,6 +613,19 @@ Webhook body example:
 ```
 
 Messages are sent through `https://{uid}.push.ft07.com/send/{sendkey}.send`.
+
+### QQ official bot
+
+```json
+{
+  "app_id": "app id from q.qq.com",
+  "app_secret": "app secret",
+  "group_openid": "group_openid from bot events",
+  "sandbox": true
+}
+```
+
+`group_openid` is not the numeric QQ group number. Saving an enabled QQ bot channel starts a WebSocket keepalive in the main app. Leave `group_openid` empty and @ the bot with `绑定` (or `绑定#channelID`). Send `帮助` for the command list, or keywords such as `余额` / `公告` / `倍率` to query current status in the same group.
 
 ## Subscription Rules
 

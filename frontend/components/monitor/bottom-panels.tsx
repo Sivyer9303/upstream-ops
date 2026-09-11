@@ -668,6 +668,7 @@ const notifyTypeIcon: Partial<Record<NotificationChannelType, LucideIcon>> = {
   dingtalk: Send,
   feishu: Send,
   serverchan3: Send,
+  qqbot: Send,
 }
 
 export function NotificationStatus() {
@@ -762,6 +763,7 @@ export function NotificationStatus() {
                         {c.type}
                         {" · "}
                         {subCount === 0 ? "订阅全部" : `${subCount} 条订阅`}
+                        {c.type === "qqbot" ? ` · @机器人发送 绑定#${c.id} 或 帮助` : ""}
                         {!c.enabled ? " · 已禁用" : ""}
                       </p>
                     </div>

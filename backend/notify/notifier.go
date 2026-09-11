@@ -1,6 +1,6 @@
 // Package notify 通知发送统一接口与 Dispatcher。
 //
-// 第一版至少支持 Telegram Bot；同时实现 Webhook / Email / 企业微信 / 钉钉 / 飞书。
+// 第一版至少支持 Telegram Bot；同时实现 Webhook / Email / 企业微信 / 钉钉 / 飞书 / Server酱³ / QQ 官方机器人。
 // 每种类型走 ConfigCipher 里的 JSON 字段。
 package notify
 

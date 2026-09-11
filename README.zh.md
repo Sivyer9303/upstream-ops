@@ -190,6 +190,7 @@ UpstreamOps 主要解决这些痛点：
 - 钉钉
 - 飞书
 - ServerChan3
+- QQ 官方机器人
 
 通知渠道支持订阅过滤：
 
@@ -317,7 +318,7 @@ IMAGE_TAG=latest
 生产环境建议锁定具体版本，例如：
 
 ```env
-IMAGE_TAG=v1.0.1
+IMAGE_TAG=v1.0.2
 ```
 
 ## MySQL 部署
@@ -547,7 +548,7 @@ Token 模式凭据：
 
 通知渠道的密钥、Webhook、SMTP 密码等敏感配置会加密保存。新增或编辑通知渠道时，按渠道类型填写对应 JSON。
 
-通知渠道支持单独开启 `proxy_enabled`。只有全局 `proxy.enabled=true` 且该通知渠道开启 `proxy_enabled` 时，Telegram、Webhook、企业微信、钉钉、飞书、ServerChan3 等外部推送请求才会走代理。
+通知渠道支持单独开启 `proxy_enabled`。只有全局 `proxy.enabled=true` 且该通知渠道开启 `proxy_enabled` 时，Telegram、Webhook、企业微信、钉钉、飞书、ServerChan3、QQ 官方机器人等外部推送请求才会走代理。
 
 ### Telegram
 
@@ -653,6 +654,23 @@ Webhook 请求体示例：
 - `sendkey`：ServerChan3 的 SendKey。
 
 消息将通过 `https://{uid}.push.ft07.com/send/{sendkey}.send` 发送，标题为通知主题，正文为通知内容。
+
+### QQ 官方机器人
+
+```json
+{
+  "app_id": "开放平台 AppID",
+  "app_secret": "开放平台 AppSecret",
+  "group_openid": "事件里的 group_openid",
+  "sandbox": true
+}
+```
+
+- `app_id` / `app_secret`：在 [QQ 开放平台](https://q.qq.com/) 创建机器人后获得。
+- `group_openid`：机器人进群或被 @ 时事件里的群标识，**不是数字群号**。
+- `sandbox`：沙箱测试群设为 `true`，正式群设为 `false`。
+
+官方发消息接口要求机器人在线。保存并启用 QQ 机器人渠道后，主应用会按渠道里的 AppID / Secret 自动连 WebSocket。`group_openid` 可以先留空，在目标群 @ 机器人发送 `绑定`（多个渠道时用 `绑定#渠道ID`）。也可以发送 `帮助` 查看口令，或发送 `余额`、`公告`、`倍率` 等立刻查询当前状态。
 
 ## 订阅规则
 

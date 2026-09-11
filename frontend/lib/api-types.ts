@@ -17,6 +17,7 @@ export type NotificationChannelType =
   | "dingtalk"
   | "feishu"
   | "serverchan3"
+  | "qqbot"
 
 export type CaptchaProviderType =
   | "capsolver"

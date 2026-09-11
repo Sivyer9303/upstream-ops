@@ -200,6 +200,7 @@ const (
 	NotifyDingTalk    NotificationChannelType = "dingtalk"
 	NotifyFeishu      NotificationChannelType = "feishu"
 	NotifyServerChan3 NotificationChannelType = "serverchan3"
+	NotifyQQBot       NotificationChannelType = "qqbot"
 )
 
 // NotificationChannel 通知渠道配置。ConfigCipher 加密保存 JSON 配置（含 token / webhook url / 密码等）。
@@ -224,20 +225,20 @@ func (NotificationChannel) TableName() string { return "notification_channels" }
 type NotificationEvent string
 
 const (
-	EventBalanceLow                     NotificationEvent = "balance_low"
-	EventBalanceDigest                  NotificationEvent = "balance_digest"
-	EventRateChanged                    NotificationEvent = "rate_changed"
-	EventRateStructureChanged           NotificationEvent = "rate_structure_changed"
-	EventRateAdded                      NotificationEvent = "rate_added"
-	EventRateRemoved                    NotificationEvent = "rate_removed"
-	EventAnnouncement                   NotificationEvent = "announcement"
-	EventLoginFailed                    NotificationEvent = "login_failed"
-	EventCaptchaFailed                  NotificationEvent = "captcha_failed"
-	EventMonitorFailed                  NotificationEvent = "monitor_failed"
-	EventSubscriptionDailyLow           NotificationEvent = "subscription_daily_remaining_low"
-	EventSubscriptionWeeklyLow          NotificationEvent = "subscription_weekly_remaining_low"
-	EventSubscriptionMonthlyLow         NotificationEvent = "subscription_monthly_remaining_low"
-	EventSubscriptionExpiring           NotificationEvent = "subscription_expiring"
+	EventBalanceLow             NotificationEvent = "balance_low"
+	EventBalanceDigest          NotificationEvent = "balance_digest"
+	EventRateChanged            NotificationEvent = "rate_changed"
+	EventRateStructureChanged   NotificationEvent = "rate_structure_changed"
+	EventRateAdded              NotificationEvent = "rate_added"
+	EventRateRemoved            NotificationEvent = "rate_removed"
+	EventAnnouncement           NotificationEvent = "announcement"
+	EventLoginFailed            NotificationEvent = "login_failed"
+	EventCaptchaFailed          NotificationEvent = "captcha_failed"
+	EventMonitorFailed          NotificationEvent = "monitor_failed"
+	EventSubscriptionDailyLow   NotificationEvent = "subscription_daily_remaining_low"
+	EventSubscriptionWeeklyLow  NotificationEvent = "subscription_weekly_remaining_low"
+	EventSubscriptionMonthlyLow NotificationEvent = "subscription_monthly_remaining_low"
+	EventSubscriptionExpiring   NotificationEvent = "subscription_expiring"
 )
 
 // NotificationLog 通知发送记录。

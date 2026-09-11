@@ -32,6 +32,9 @@ func registerNotifications(g *gin.RouterGroup, d *Deps) {
 			fail(c, http.StatusInternalServerError, err)
 			return
 		}
+		if d.QQKeepAlive != nil {
+			d.QQKeepAlive.Sync()
+		}
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 	gpc.POST("/:id/test", func(c *gin.Context) { testNotify(c, d) })
@@ -150,6 +153,9 @@ func createNotifyChannel(c *gin.Context, d *Deps) {
 		fail(c, http.StatusInternalServerError, err)
 		return
 	}
+	if d.QQKeepAlive != nil {
+		d.QQKeepAlive.Sync()
+	}
 	c.JSON(http.StatusOK, gin.H{"data": ch})
 }
 
@@ -180,7 +186,13 @@ func updateNotifyChannel(c *gin.Context, d *Deps) {
 	ch.ProxyEnabled = in.ProxyEnabled
 	ch.Subscriptions = subs
 	if in.Config != "" {
-		cipherCfg, err := d.Cipher.Encrypt(in.Config)
+		cfg := in.Config
+		if ch.Type == storage.NotifyQQBot {
+			if prev, err := d.Cipher.Decrypt(ch.ConfigCipher); err == nil {
+				cfg = notify.MergeQQBotConfigJSON(prev, cfg)
+			}
+		}
+		cipherCfg, err := d.Cipher.Encrypt(cfg)
 		if err != nil {
 			fail(c, http.StatusInternalServerError, err)
 			return
@@ -190,6 +202,9 @@ func updateNotifyChannel(c *gin.Context, d *Deps) {
 	if err := d.Notifies.UpdateChannel(ch); err != nil {
 		fail(c, http.StatusInternalServerError, err)
 		return
+	}
+	if d.QQKeepAlive != nil {
+		d.QQKeepAlive.Sync()
 	}
 	c.JSON(http.StatusOK, gin.H{"data": ch})
 }

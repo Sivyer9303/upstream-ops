@@ -183,36 +183,11 @@ func (s *Service) DispatchBalanceDigest(ctx context.Context) error {
 		return nil
 	}
 
-	var total float64
-	var b strings.Builder
-	fmt.Fprintf(&b, "余额汇总（共 %d 个渠道）\n", len(list))
-	for i, c := range list {
-		bal := 0.0
-		if c.LastBalance != nil {
-			bal = *c.LastBalance
-			total += bal
-		}
-		status := "健康"
-		switch {
-		case c.LastError != "":
-			status = "异常"
-		case c.BalanceThreshold > 0 && c.LastBalance != nil && *c.LastBalance < c.BalanceThreshold:
-			status = "偏低"
-		case c.LastBalance == nil:
-			status = "未采样"
-		}
-		fmt.Fprintf(&b, "%d. %s  余额 %.4f", i+1, c.Name, bal)
-		if c.BalanceThreshold > 0 {
-			fmt.Fprintf(&b, "  阈值 %.4f", c.BalanceThreshold)
-		}
-		fmt.Fprintf(&b, "  %s\n", status)
-	}
-	fmt.Fprintf(&b, "\n合计：%.4f", total)
-
+	subject, body := formatBalanceDigest(list)
 	return s.dispatcher.Dispatch(ctx, notify.Message{
 		Event:   storage.EventBalanceDigest,
-		Subject: fmt.Sprintf("余额汇总（%d 渠道，合计 %.4f）", len(list), total),
-		Body:    strings.TrimSpace(b.String()),
+		Subject: subject,
+		Body:    body,
 	})
 }
 
