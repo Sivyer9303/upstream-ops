@@ -22,6 +22,9 @@ type qqBotGroupAtEvent struct {
 	Content     string `json:"content"`
 	GroupOpenID string `json:"group_openid"`
 	GroupID     string `json:"group_id"`
+	Author      struct {
+		Bot bool `json:"bot"`
+	} `json:"author"`
 }
 
 type qqBotBindApplyResult struct {
@@ -142,7 +145,7 @@ func applyQQBotBind(
 			if i > 0 {
 				b.WriteString("；")
 			}
-			b.WriteString("绑定#")
+			b.WriteString("#绑定#")
 			b.WriteString(strconv.FormatUint(uint64(it.ch.ID), 10))
 			b.WriteString("（")
 			b.WriteString(it.ch.Name)
@@ -156,7 +159,7 @@ func applyQQBotBind(
 	if len(matched) == 0 {
 		return qqBotBindApplyResult{Reply: "没有找到可绑定的 QQ 渠道，请先在面板里保存并启用这个机器人。"}
 	}
-	return qqBotBindApplyResult{Reply: "这些渠道都已绑定其他群。改绑请发送 绑定#渠道ID。"}
+	return qqBotBindApplyResult{Reply: "这些渠道都已绑定其他群。改绑请发送 #绑定#渠道ID。"}
 }
 
 func setQQBotGroupOpenID(ch storage.NotificationChannel, cfg qqBotConfig, groupOpenID string, encrypt func(string) (string, error)) (*storage.NotificationChannel, error) {
@@ -201,11 +204,20 @@ func MergeQQBotConfigJSON(prev, next string) string {
 }
 
 func (h *QQBotKeepAliveHub) handleDispatch(ctx context.Context, api *qqBotAPI, eventType string, raw json.RawMessage) {
-	if h == nil || api == nil || eventType != "GROUP_AT_MESSAGE_CREATE" {
+	if h == nil || api == nil {
 		return
 	}
 	var ev qqBotGroupAtEvent
 	if err := json.Unmarshal(raw, &ev); err != nil {
+		return
+	}
+	if ev.Author.Bot {
+		return
+	}
+	if !shouldHandleQQBotGroupEvent(eventType, ev.Content) {
+		return
+	}
+	if !h.takeQQBotMessageID(ev.ID) {
 		return
 	}
 	groupOpenID := strings.TrimSpace(ev.GroupOpenID)
@@ -239,6 +251,11 @@ func (h *QQBotKeepAliveHub) replyForCommand(ctx context.Context, api *qqBotAPI, 
 			return "查询服务未就绪。"
 		}
 		return h.inbox.HandleQQBotReport(ctx, cmd.Report)
+	case QQBotCmdRateQuery:
+		if h.inbox == nil {
+			return "查询服务未就绪。"
+		}
+		return h.inbox.HandleQQBotRateQuery(ctx, cmd.Arg)
 	case QQBotCmdBind:
 		if h.repo == nil || h.cipher == nil {
 			return "绑定失败：服务未就绪。"

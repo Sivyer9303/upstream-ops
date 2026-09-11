@@ -304,7 +304,7 @@ IMAGE_TAG=latest
 For production, pin a specific version:
 
 ```env
-IMAGE_TAG=v1.0.2
+IMAGE_TAG=v1.0.3
 ```
 
 ## MySQL Deployment
@@ -625,7 +625,7 @@ Messages are sent through `https://{uid}.push.ft07.com/send/{sendkey}.send`.
 }
 ```
 
-`group_openid` is not the numeric QQ group number. Saving an enabled QQ bot channel starts a WebSocket keepalive in the main app. Leave `group_openid` empty and @ the bot with `绑定` (or `绑定#channelID`). Send `帮助` for the command list, or keywords such as `余额` / `公告` / `倍率` to query current status in the same group.
+`group_openid` is not the numeric QQ group number. Saving an enabled QQ bot channel starts a WebSocket keepalive in the main app. Leave `group_openid` empty, add the bot to the group, set the bot's group message scope to receive all messages, then send `#绑定` (or `#绑定#channelID`). Send `#帮助` for the command list, or `#余额` / `#公告` / `#倍率` to query current status. `#倍率` first lists upstreams and the follow-up command for each. @-mentions still work.
 
 ## Subscription Rules
 

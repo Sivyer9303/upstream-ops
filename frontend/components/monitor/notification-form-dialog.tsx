@@ -715,9 +715,9 @@ function ConfigFields({ type, cfg, updateCfg, disabled, isEdit, channelId }: Con
       <div className="space-y-2 rounded-lg border border-border p-3">
         <p className="text-xs font-medium text-muted-foreground">QQ 官方机器人</p>
         <p className="text-[11px] leading-5 text-muted-foreground">
-          先保存并启用，再在目标群 @ 机器人。发送「绑定」
-          {channelId ? `或「绑定#${channelId}」` : ""}
-          自动写入群 OpenID；「帮助」查看全部口令；「余额」「公告」「倍率」等会立刻回应当前状态。
+          先保存并启用，再把机器人拉进目标群。群设置里把机器人消息范围设为「获取群内全部消息」后，直接发「#绑定」
+          {channelId ? `或「#绑定#${channelId}」` : ""}
+          即可写入群 OpenID；「#帮助」查看全部口令；「#余额」「#公告」「#倍率」等会立刻回应当前状态。@ 机器人仍然有效。
         </p>
         <div className="space-y-1.5">
           <Label htmlFor="qqbot-appid">AppID</Label>
@@ -745,7 +745,7 @@ function ConfigFields({ type, cfg, updateCfg, disabled, isEdit, channelId }: Con
           <Label htmlFor="qqbot-group">群 OpenID</Label>
           <Input
             id="qqbot-group"
-            placeholder="可留空，@机器人发送「绑定」自动写入"
+            placeholder="可留空，群里发送「#绑定」自动写入"
             value={cfg.qqbot_group_openid}
             onChange={(e) => updateCfg({ qqbot_group_openid: e.target.value })}
             disabled={disabled}

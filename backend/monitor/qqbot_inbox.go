@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/bejix/upstream-ops/backend/channel"
 	"github.com/bejix/upstream-ops/backend/notify"
@@ -46,6 +48,170 @@ func NewQQBotInbox(
 		channelSvc:    channelSvc,
 		log:           log,
 	}
+}
+
+func (s *QQBotInbox) HandleQQBotRateQuery(_ context.Context, arg string) string {
+	if s == nil || s.channels == nil {
+		return "还没有渠道数据。"
+	}
+	list, err := s.channels.ListMonitorEnabled()
+	if err != nil {
+		s.log.Error("qqbot rate query list channels", "err", err)
+		return "查询失败：" + err.Error()
+	}
+	selector, filter := splitQQBotRateArg(arg)
+	if selector == "" {
+		counts := make(map[uint]int, len(list))
+		if s.rates != nil {
+			for _, ch := range list {
+				rows, rateErr := s.rates.ListByChannel(ch.ID)
+				if rateErr != nil {
+					s.log.Error("qqbot rate query count", "channel", ch.Name, "err", rateErr)
+					continue
+				}
+				counts[ch.ID] = len(rows)
+			}
+		}
+		return formatQQBotRateCatalog(list, counts)
+	}
+	ch, errMsg := matchQQBotRateChannel(list, selector)
+	if errMsg != "" {
+		return errMsg
+	}
+	if s.rates == nil {
+		return ch.Name + " 还没有倍率快照。"
+	}
+	rows, err := s.rates.ListByChannel(ch.ID)
+	if err != nil {
+		s.log.Error("qqbot rate query snapshots", "channel", ch.Name, "err", err)
+		return "查询失败：" + err.Error()
+	}
+	return formatQQBotRateDetail(ch, rows, filter)
+}
+
+func splitQQBotRateArg(arg string) (selector, filter string) {
+	fields := strings.Fields(strings.TrimSpace(arg))
+	if len(fields) == 0 {
+		return "", ""
+	}
+	if len(fields) == 1 {
+		return fields[0], ""
+	}
+	return fields[0], strings.Join(fields[1:], " ")
+}
+
+func matchQQBotRateChannel(list []storage.Channel, selector string) (storage.Channel, string) {
+	selector = strings.TrimSpace(selector)
+	if len(list) == 0 {
+		return storage.Channel{}, "还没有启用监控的上游渠道。"
+	}
+	if selector == "" {
+		return storage.Channel{}, "发送 #倍率 查看上游列表。"
+	}
+	if id, err := strconv.ParseUint(selector, 10, 64); err == nil && id > 0 {
+		for _, ch := range list {
+			if uint64(ch.ID) == id {
+				return ch, ""
+			}
+		}
+		return storage.Channel{}, "没有这个上游编号。发送 #倍率 查看列表和查询命令。"
+	}
+	lower := strings.ToLower(selector)
+	var exact []storage.Channel
+	var contains []storage.Channel
+	for _, ch := range list {
+		name := strings.ToLower(strings.TrimSpace(ch.Name))
+		if name == lower {
+			exact = append(exact, ch)
+			continue
+		}
+		if strings.Contains(name, lower) {
+			contains = append(contains, ch)
+		}
+	}
+	switch {
+	case len(exact) == 1:
+		return exact[0], ""
+	case len(exact) > 1:
+		return storage.Channel{}, formatQQBotRateAmbiguous(exact)
+	case len(contains) == 1:
+		return contains[0], ""
+	case len(contains) > 1:
+		return storage.Channel{}, formatQQBotRateAmbiguous(contains)
+	default:
+		return storage.Channel{}, "没有找到这个上游。发送 #倍率 查看列表和查询命令。"
+	}
+}
+
+func formatQQBotRateAmbiguous(list []storage.Channel) string {
+	var b strings.Builder
+	b.WriteString("匹配到多个上游，请用更精确的名称或编号：\n")
+	for _, ch := range list {
+		fmt.Fprintf(&b, "· %s\n  #倍率#%d\n", ch.Name, ch.ID)
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func formatQQBotRateCatalog(list []storage.Channel, counts map[uint]int) string {
+	if len(list) == 0 {
+		return "还没有启用监控的上游渠道。"
+	}
+	var b strings.Builder
+	b.WriteString("当前上游渠道，再发对应命令查看倍率：\n")
+	for _, ch := range list {
+		n := 0
+		if counts != nil {
+			n = counts[ch.ID]
+		}
+		fmt.Fprintf(&b, "\n· %s  %d 条\n  #倍率#%d\n", ch.Name, n, ch.ID)
+	}
+	b.WriteString("\n也可以发 #倍率 渠道名，或 #倍率#ID 关键词 筛选。")
+	return strings.TrimSpace(b.String())
+}
+
+func formatQQBotRateDetail(ch storage.Channel, rows []storage.RateSnapshot, filter string) string {
+	filter = strings.TrimSpace(filter)
+	filtered := rows
+	if filter != "" {
+		filtered = filtered[:0:0]
+		lower := strings.ToLower(filter)
+		for _, row := range rows {
+			name := strings.ToLower(row.ModelName)
+			desc := strings.ToLower(row.Description)
+			if strings.Contains(name, lower) || strings.Contains(desc, lower) {
+				filtered = append(filtered, row)
+			}
+		}
+	}
+	if len(filtered) == 0 {
+		if filter != "" {
+			return fmt.Sprintf("%s 没有匹配「%s」的倍率。", ch.Name, filter)
+		}
+		return ch.Name + " 还没有倍率快照。"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s 当前倍率（%d 条）\n", ch.Name, len(filtered))
+	hidden := 0
+	for i, row := range filtered {
+		line := formatQQBotRateLine(row)
+		next := b.String() + line
+		if utf8.RuneCountInString(next) > 1700 {
+			hidden = len(filtered) - i
+			break
+		}
+		b.WriteString(line)
+	}
+	if hidden > 0 {
+		fmt.Fprintf(&b, "…还有 %d 条，可用 #倍率#%d 关键词 筛选", hidden, ch.ID)
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func formatQQBotRateLine(row storage.RateSnapshot) string {
+	if row.CompletionRatio != 0 {
+		return fmt.Sprintf("%s  %.4f / 补全 %.4f\n", row.ModelName, row.Ratio, row.CompletionRatio)
+	}
+	return fmt.Sprintf("%s  %.4f\n", row.ModelName, row.Ratio)
 }
 
 func (s *QQBotInbox) HandleQQBotReport(ctx context.Context, report string) string {

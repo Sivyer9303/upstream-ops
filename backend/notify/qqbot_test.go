@@ -355,24 +355,34 @@ func TestParseQQBotUserCommand(t *testing.T) {
 		in     string
 		kind   string
 		report string
+		arg    string
 	}{
-		{"", QQBotCmdHelp, ""},
-		{"帮助", QQBotCmdHelp, ""},
-		{" /help ", QQBotCmdHelp, ""},
-		{"测试", QQBotCmdTest, ""},
-		{"余额", QQBotCmdReport, QQBotReportBalanceDigest},
-		{"余额不足", QQBotCmdReport, QQBotReportBalanceLow},
-		{"倍率变化", QQBotCmdReport, QQBotReportRateChanged},
-		{"分组", QQBotCmdReport, QQBotReportRateGroup},
-		{"公告", QQBotCmdReport, QQBotReportAnnouncement},
-		{"订阅", QQBotCmdReport, QQBotReportSubscription},
-		{"绑定#4", QQBotCmdBind, ""},
-		{"乱写", QQBotCmdUnknown, ""},
+		{"", QQBotCmdHelp, "", ""},
+		{"帮助", QQBotCmdHelp, "", ""},
+		{"#帮助", QQBotCmdHelp, "", ""},
+		{" /help ", QQBotCmdHelp, "", ""},
+		{"测试", QQBotCmdTest, "", ""},
+		{"#余额", QQBotCmdReport, QQBotReportBalanceDigest, ""},
+		{"余额不足", QQBotCmdReport, QQBotReportBalanceLow, ""},
+		{"倍率", QQBotCmdRateQuery, "", ""},
+		{"#倍率", QQBotCmdRateQuery, "", ""},
+		{"#倍率#12", QQBotCmdRateQuery, "", "12"},
+		{"#倍率 12 gpt", QQBotCmdRateQuery, "", "12 gpt"},
+		{"倍率变化", QQBotCmdReport, QQBotReportRateChanged, ""},
+		{"#倍率变化", QQBotCmdReport, QQBotReportRateChanged, ""},
+		{"分组", QQBotCmdReport, QQBotReportRateGroup, ""},
+		{"公告", QQBotCmdReport, QQBotReportAnnouncement, ""},
+		{"订阅", QQBotCmdReport, QQBotReportSubscription, ""},
+		{"#绑定#4", QQBotCmdBind, "", ""},
+		{"乱写", QQBotCmdUnknown, "", ""},
 	}
 	for _, tc := range cases {
 		got := ParseQQBotUserCommand(tc.in)
-		if got.Kind != tc.kind || got.Report != tc.report {
-			t.Fatalf("%q => %+v, want kind=%s report=%s", tc.in, got, tc.kind, tc.report)
+		if got.Kind != tc.kind || got.Report != tc.report || got.Arg != tc.arg {
+			t.Fatalf("%q => %+v, want kind=%s report=%s arg=%s", tc.in, got, tc.kind, tc.report, tc.arg)
+		}
+		if tc.in == "#绑定#4" && got.Bind.ID != 4 {
+			t.Fatalf("bind id = %d", got.Bind.ID)
 		}
 	}
 }
@@ -380,10 +390,26 @@ func TestParseQQBotUserCommand(t *testing.T) {
 func TestQQBotHelpTextListsReports(t *testing.T) {
 	t.Parallel()
 	text := QQBotHelpText()
-	for _, word := range []string{"帮助", "绑定", "余额汇总", "上游公告", "订阅通知"} {
+	for _, word := range []string{"#帮助", "#绑定", "#余额汇总", "#倍率", "#倍率变化", "#上游公告", "#订阅通知"} {
 		if !strings.Contains(text, word) {
 			t.Fatalf("help missing %q:\n%s", word, text)
 		}
+	}
+}
+
+func TestShouldHandleQQBotGroupEvent(t *testing.T) {
+	t.Parallel()
+	if !shouldHandleQQBotGroupEvent("GROUP_AT_MESSAGE_CREATE", "帮助") {
+		t.Fatal("at message should handle")
+	}
+	if !shouldHandleQQBotGroupEvent("GROUP_MESSAGE_CREATE", "#帮助") {
+		t.Fatal("hash command should handle")
+	}
+	if shouldHandleQQBotGroupEvent("GROUP_MESSAGE_CREATE", "大家好") {
+		t.Fatal("plain group chat should be ignored")
+	}
+	if shouldHandleQQBotGroupEvent("READY", "#帮助") {
+		t.Fatal("other events should be ignored")
 	}
 }
 
@@ -393,10 +419,38 @@ func TestReplyForCommandHelpAndUnknown(t *testing.T) {
 	if !strings.Contains(h.replyForCommand(context.Background(), &qqBotAPI{}, "g", "帮助"), "口令") {
 		t.Fatal("help reply")
 	}
-	if !strings.Contains(h.replyForCommand(context.Background(), &qqBotAPI{}, "g", "abc"), "帮助") {
+	if !strings.Contains(h.replyForCommand(context.Background(), &qqBotAPI{}, "g", "#帮助"), "#倍率") {
+		t.Fatal("hash help reply")
+	}
+	if !strings.Contains(h.replyForCommand(context.Background(), &qqBotAPI{}, "g", "abc"), "#帮助") {
 		t.Fatal("unknown reply")
 	}
 	if h.replyForCommand(context.Background(), &qqBotAPI{}, "g", "测试") != QQBotTestReply() {
 		t.Fatal("test reply")
+	}
+	if h.replyForCommand(context.Background(), &qqBotAPI{}, "g", "#倍率") != "查询服务未就绪。" {
+		t.Fatal("rate query without inbox")
+	}
+	h.inbox = stubQQBotInbox{}
+	if got := h.replyForCommand(context.Background(), &qqBotAPI{}, "g", "#倍率#3 gpt"); got != "rate:3 gpt" {
+		t.Fatalf("rate query = %q", got)
+	}
+}
+
+type stubQQBotInbox struct{}
+
+func (stubQQBotInbox) HandleQQBotReport(context.Context, string) string { return "report" }
+func (stubQQBotInbox) HandleQQBotRateQuery(_ context.Context, arg string) string {
+	return "rate:" + arg
+}
+
+func TestTakeQQBotMessageID(t *testing.T) {
+	t.Parallel()
+	h := &QQBotKeepAliveHub{}
+	if !h.takeQQBotMessageID("m1") || h.takeQQBotMessageID("m1") {
+		t.Fatal("duplicate message id should be dropped")
+	}
+	if !h.takeQQBotMessageID("m2") {
+		t.Fatal("new message id should pass")
 	}
 }

@@ -59,6 +59,7 @@ type QQBotKeepAliveHub struct {
 	mu      sync.Mutex
 	parent  context.Context
 	runners map[string]*qqBotKeepAliveRunner
+	seenMsg map[string]time.Time
 }
 
 func NewQQBotKeepAliveHub(repo *storage.Notifications, cipher *crypto.Cipher, log *slog.Logger) *QQBotKeepAliveHub {
@@ -117,6 +118,29 @@ func (h *QQBotKeepAliveHub) logger() *slog.Logger {
 		return h.log
 	}
 	return slog.Default()
+}
+
+func (h *QQBotKeepAliveHub) takeQQBotMessageID(id string) bool {
+	id = strings.TrimSpace(id)
+	if h == nil || id == "" {
+		return true
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.seenMsg == nil {
+		h.seenMsg = map[string]time.Time{}
+	}
+	now := time.Now()
+	if seen, ok := h.seenMsg[id]; ok && now.Sub(seen) < 30*time.Second {
+		return false
+	}
+	h.seenMsg[id] = now
+	for key, seen := range h.seenMsg {
+		if now.Sub(seen) > time.Minute {
+			delete(h.seenMsg, key)
+		}
+	}
+	return true
 }
 
 func (h *QQBotKeepAliveHub) Sync() {

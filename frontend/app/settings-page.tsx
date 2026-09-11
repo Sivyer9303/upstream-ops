@@ -1455,7 +1455,7 @@ export default function SettingsPage() {
                                 ? "订阅全部渠道和分组"
                                 : `已配置 ${subCount} 条订阅规则`}
                               {channel.type === "qqbot"
-                                ? ` · @机器人发送 绑定#${channel.id} 或 帮助`
+                                ? ` · 群里发送 #绑定#${channel.id} 或 #帮助`
                                 : ""}
                             </p>
                           </div>
