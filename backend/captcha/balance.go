@@ -150,14 +150,18 @@ func balanceEndpoint(cfg *storage.CaptchaConfig) (string, string, error) {
 		return "https://api.anti-captcha.com", "usd", nil
 	case storage.CaptchaYesCaptcha:
 		return "https://api.yescaptcha.com", "points", nil
+	case storage.CaptchaSolverMoe:
+		return "https://solver.000.moe", "points", nil
 	default:
 		return "", "", fmt.Errorf("unknown captcha provider: %s", cfg.Type)
 	}
 }
 
 func balanceUnit(t storage.CaptchaProviderType) string {
-	if t == storage.CaptchaYesCaptcha {
+	switch t {
+	case storage.CaptchaYesCaptcha, storage.CaptchaSolverMoe:
 		return "points"
+	default:
+		return "usd"
 	}
-	return "usd"
 }

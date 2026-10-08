@@ -50,6 +50,24 @@ func TestFetchBalanceYesCaptchaUnit(t *testing.T) {
 	}
 }
 
+func TestFetchBalanceSolverMoeUnit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"errorId":0,"balance":100}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	res, err := FetchBalance(context.Background(), &storage.CaptchaConfig{
+		Type:     storage.CaptchaSolverMoe,
+		Endpoint: srv.URL,
+	}, "sk-test")
+	if err != nil {
+		t.Fatalf("fetch balance: %v", err)
+	}
+	if res.Balance != 100 || res.Unit != "points" {
+		t.Fatalf("result = %#v", res)
+	}
+}
+
 func TestFetchBalanceReturnsProviderError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"errorId":1,"errorCode":"ERROR_KEY_DOES_NOT_EXIST","errorDescription":"bad key"}`))

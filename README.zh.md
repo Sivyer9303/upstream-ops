@@ -318,7 +318,7 @@ IMAGE_TAG=latest
 生产环境建议锁定具体版本，例如：
 
 ```env
-IMAGE_TAG=v1.0.3
+IMAGE_TAG=v1.0.4
 ```
 
 ## MySQL 部署

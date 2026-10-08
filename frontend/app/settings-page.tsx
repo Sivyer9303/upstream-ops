@@ -1834,6 +1834,7 @@ function captchaLabel(type: CaptchaConfig["type"]) {
     "2captcha": "2Captcha",
     anticaptcha: "AntiCaptcha",
     yescaptcha: "YesCaptcha",
+    solvermoe: "solver.000.moe",
   };
   return map[type] ?? type;
 }

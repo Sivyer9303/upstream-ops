@@ -496,6 +496,7 @@ const captchaTypeLabel: Record<string, string> = {
   "2captcha": "2Captcha",
   anticaptcha: "AntiCaptcha",
   yescaptcha: "YesCaptcha",
+  solvermoe: "solver.000.moe",
 }
 
 export function CaptchaStatus() {

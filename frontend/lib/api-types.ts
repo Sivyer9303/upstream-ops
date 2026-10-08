@@ -24,6 +24,7 @@ export type CaptchaProviderType =
   | "2captcha"
   | "anticaptcha"
   | "yescaptcha"
+  | "solvermoe"
 
 export type MonitorJob = "login" | "balance" | "rates"
 

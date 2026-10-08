@@ -112,6 +112,7 @@ export function CaptchaFormDialog({ open, onOpenChange, config }: CaptchaFormDia
     capsolver: { key: "CapSolver clientKey", endpoint: "https://api.capsolver.com（留空走默认）" },
     anticaptcha: { key: "Anti-Captcha clientKey", endpoint: "https://api.anti-captcha.com（留空走默认）" },
     yescaptcha: { key: "YesCaptcha clientKey", endpoint: "https://api.yescaptcha.com（留空走默认）" },
+    solvermoe: { key: "solver.000.moe 令牌（sk-…）", endpoint: "https://solver.000.moe（留空走默认）" },
   }
 
   return (
@@ -152,6 +153,7 @@ export function CaptchaFormDialog({ open, onOpenChange, config }: CaptchaFormDia
                 <SelectItem value="capsolver">CapSolver</SelectItem>
                 <SelectItem value="anticaptcha">AntiCaptcha</SelectItem>
                 <SelectItem value="yescaptcha">YesCaptcha</SelectItem>
+                <SelectItem value="solvermoe">solver.000.moe</SelectItem>
               </SelectContent>
             </Select>
           </div>

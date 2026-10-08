@@ -304,7 +304,7 @@ IMAGE_TAG=latest
 For production, pin a specific version:
 
 ```env
-IMAGE_TAG=v1.0.3
+IMAGE_TAG=v1.0.4
 ```
 
 ## MySQL Deployment
